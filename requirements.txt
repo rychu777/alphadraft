@@ -1,0 +1,4 @@
+pymongo==4.16.0
+requests==2.33.1
+python-dotenv==1.2.2
+pydantic==2.13.1

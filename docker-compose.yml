@@ -1,0 +1,26 @@
+services:
+  mongodb:
+    image: mongo:latest
+    container_name: riot_mongo
+    ports:
+      - "27017:27017"
+    volumes:
+      - mongo_data:/data/db
+    environment:
+      - MONGO_INITDB_DATABASE=riot_data
+
+  league_env:
+    build: .
+    container_name: league_environment
+    depends_on:
+      - mongodb
+    env_file:
+      - .env
+    volumes:
+      # Mapping current directory to /app in the container for development
+      - .:/app
+    stdin_open: true 
+    tty: true        
+
+volumes:
+  mongo_data:
