@@ -7,6 +7,7 @@ from dotenv import load_dotenv
 
 # Import our updated schema
 from schemas.player_schema import PlayerSchema
+from schemas.match_summary_schema import MatchSummarySchema
 
 load_dotenv()
 
@@ -15,7 +16,9 @@ class RiotDataCollector:
         self.api_key = os.getenv("RIOT_API_KEY")
         self.mongo_uri = os.getenv("MONGO_URI", "mongodb://mongodb:27017/")
         self.request_delay = float(os.getenv("API_REQUEST_DELAY", 1.21))
-        
+        self.patch_start = int(os.getenv("PATCH_START_TIME", 0))
+        self.patch_end = int(os.getenv("PATCH_END_TIME", 0))
+
         if not self.api_key:
             raise ValueError("Missing RIOT_API_KEY in .env file!")
             
@@ -23,13 +26,27 @@ class RiotDataCollector:
         self.client = MongoClient(self.mongo_uri)
         self.db = self.client["riot_data"]
         self.players_col = self.db["players"]
-        
+        self.matches_col = self.db["match_summaries"]
+        self.matches_col.create_index("status")
+
         self.regions = {
             "EUW": "euw1",
             "EUNE": "eun1",
             "KR": "kr",
-            "NA": "na1"
+            "NA": "na1",
+            "VN": "vn2",
+            # "BR": "br1",
         }
+
+        self.routing_map = {
+            "euw1": "europe",
+            "eun1": "europe",
+            "kr": "asia",
+            "na1": "americas",
+            "vn2": "sea",
+            # "br1": "americas",
+        }
+        
         self.queue = "RANKED_SOLO_5x5"
 
     def _make_request(self, url, params=None):
@@ -159,7 +176,99 @@ class RiotDataCollector:
             # Remove players who were in the DB but are no longer in D1+ on this server
             self.cleanup_demoted_players(code, session_start)
 
+    def _get_match_ids_for_player(self, puuid, region_routing):
+        """Fetches Solo/Duo match IDs for a given time range."""
+        url = f"https://{region_routing}.api.riotgames.com/lol/match/v5/matches/by-puuid/{puuid}/ids"
+        all_match_ids = []
+        start_index = 0
+        
+        while True:
+            params = {
+                "startTime": self.patch_start,
+                "endTime": self.patch_end,
+                "queue": 420,  # 420 = Ranked Solo/Duo 5x5
+                "start": start_index,
+                "count": 100   # Maximum value allowed by Riot
+            }
+            
+            # Using the improved request method with retries
+            data = self._make_request(url, params=params)
+            
+            # If a 5xx/404 error occurs or no data is returned, break the loop for this player
+            if data is None or not data:
+                break
+                
+            all_match_ids.extend(data)
+            
+            # If Riot returns less than 100 matches, there are no more pages to fetch
+            if len(data) < 100:
+                break
+                
+            start_index += 100
+            
+        return all_match_ids
+
+    def collect_matches(self):
+        """Iterates over all players and saves their unique matches."""
+        if not self.patch_start or not self.patch_end:
+            print("[Error] PATCH_START_TIME or PATCH_END_TIME are not set in the .env file!")
+            return
+
+        print(f"\n{'='*40}\nStarting match collection\n{'='*40}")
+        
+        players = self.players_col.find()
+        total_players = self.players_col.count_documents({})
+        
+        processed_count = 0
+        total_new_matches = 0
+
+        for player in players:
+            puuid = player.get("puuid")
+            platform = player.get("server")
+            region_routing = self.routing_map.get(platform)
+            
+            if not puuid or not region_routing:
+                continue
+                
+            m_ids = self._get_match_ids_for_player(puuid, region_routing)
+            
+            if m_ids:
+                operations = []
+                for mid in m_ids:
+                    # Using the target MatchSummarySchema
+                    match_entry = MatchSummarySchema(
+                        _id=mid,
+                        region=region_routing,
+                        status="pending"
+                    )
+                    
+                    operations.append(UpdateOne(
+                        {"_id": match_entry.id},
+                        {"$set": match_entry.model_dump(by_alias=True)},
+                        upsert=True
+                    ))
+                
+                if operations:
+                    try:
+                        # ordered=False allows us to ignore duplicates during bulk_write
+                        result = self.matches_col.bulk_write(operations, ordered=False)
+                        total_new_matches += result.upserted_count
+                    except Exception as e:
+                        # Catch write errors at the MongoDB level
+                        pass
+            
+            processed_count += 1
+            if processed_count % 50 == 0:
+                print(f"Progress: {processed_count}/{total_players} players | New unique matches: {total_new_matches}")
+                
+        print(f"\n--- MATCH COLLECTION FINISHED | Total new games: {total_new_matches} ---")
+
 if __name__ == "__main__":
     collector = RiotDataCollector()
-    collector.collect_all()
-    print("\n--- ALL PLAYERS COLLECTED AND DATABASE CLEANED ---")
+
+    #collector.collect_all()
+    #print("\n--- ALL PLAYERS COLLECTED AND DATABASE CLEANED ---")
+
+    collector.collect_matches()
+    print("\n--- ALL MATCH IDS COLLECTED ---")
+    
