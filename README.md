@@ -1,6 +1,12 @@
 # AlphaDraft
 Hybrid Decision Support Systems: Modeling Global Meta-Game Dynamics using Heterogeneous Graph Neural Networks
 
+> *"Honestly, I think draft is always important regardless of the meta. Personally, I'd say draft accounts for at least sixty percent of the game."*
+> 
+> — **HLE Gumayusi**, LoL Professional Player 20.04.2026 ([Sheep Esports](https://www.sheepesports.com/en/all/articles/it-can-be-a-really-great-source-of-momentum-hle-gumayusi-after-beating-gen-g/en))
+
+**The Pro-Player Intuition Meets Data Science:** If a world-class player estimates that the drafting phase dictates 60% of the game's outcome, can we prove it mathematically? **AlphaDraft** is built to answer this exact question. By approximating the complex dynamics of Champion Select, this research aims to approach that theoretical ~60% prediction accuracy ceiling-proving that "Draft Diff" is not just a psychological construct, but a quantifiable, mathematical metric.
+
 ## Abstract
 **AlphaDraft** is an advanced decision-support system designed to model and optimize the drafting phase in *League of Legends*. By integrating Heterogeneous Graph Neural Networks (GNN) with Large Language Models (LLM), the project moves beyond flat win-rate statistics. It focuses on the semantic and mechanical interactions between champion abilities to predict match outcomes and simulate optimal adversarial drafting strategies.
 
