@@ -1,4 +1,15 @@
+# Data collection
 pymongo==4.16.0
 requests==2.33.1
 python-dotenv==1.2.2
 pydantic==2.13.1
+
+# Data exploration and visualization
+jupyterlab==4.5.6
+matplotlib==3.10.8
+pandas==3.0.2
+seaborn==0.13.2
+
+# Network analysis
+networkx==3.6.1
+networkit==11.2.1

@@ -16,6 +16,8 @@ services:
       - mongodb
     env_file:
       - .env
+    ports:
+      - "8888:8888"
     volumes:
       # Mapping current directory to /app in the container for development
       - .:/app
